@@ -8,16 +8,14 @@
 
 			<b-modal :active.sync="createRoomModal" has-modal-card>
 				<div>
-					<b-input placeholder="Add your name" type="text" class="name-input"></b-input>
-					<router-link :to="{name: 'Call'}">
-						<b-button rounded size="is-medium" type="is-success" @click="createRoom">Create</b-button>
-					</router-link>
+					<b-input placeholder="Add your name" type="text" class="name-input"  v-model="name"></b-input>
+					<b-button rounded size="is-medium" type="is-success" @click="createRoom">Create</b-button>
 				</div>
 			</b-modal>
 
 			<b-modal :active.sync="joinRoomModal" has-modal-card>
 				<div>
-					<b-input placeholder="Add your name" type="text" class="name-input" :value="name"></b-input>
+					<b-input placeholder="Add your name" type="text" class="name-input" v-model="name"></b-input>
 					<b-input placeholder="Enter code" type="text" class="name-input" v-model="roomCode"></b-input>
 					<b-button rounded size="is-medium" type="is-success" @click="joinRoom">Join</b-button>
 				</div>
@@ -39,12 +37,14 @@ export default {
     }
   },
   methods: {
-    createRoom: function (){
-      this.$store.commit('setHost')
-      this.$store.commit('setUsername', name);
+    createRoom: async function (){
+      this.$store.commit('setHost');
+      this.$store.commit('setUsername', this.name);
+      await this.$router.push('Call');
     },
     joinRoom: async function (){
       this.$store.commit('setRoomId', this.roomCode);
+      this.$store.commit('setUsername', this.name);
       const roomRef = fb.firestore.collection('rooms').doc(`${this.roomCode}`);
       const roomSnapshot = await roomRef.get();
       console.log('Got room:', roomSnapshot.exists);
