@@ -6,8 +6,8 @@ module.exports = {
   extends: ["plugin:vue/essential"],
   rules: {
     "indent": ["error", 2],
-    "no-console": process.env.NODE_ENV === "production" ? "error" : "off",
-    "no-debugger": process.env.NODE_ENV === "production" ? "error" : "off",
+    "no-console": "off",
+    "no-debugger": "off",
     "linebreak-style": "off",
     "endOfLine": "off"
   },

@@ -10,15 +10,6 @@ const fb = require('../firebaseConfig.js');
 
 export default {
   name: 'Room',
-  data : function() {
-    return{
-      peerConnection : null,
-      remotePeerConnection: null,
-      localStream: null,
-      remoteStream: null,
-      participant: 0
-    }
-  },
   computed: {
     code() {
       return this.$store.state.roomId
