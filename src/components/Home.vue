@@ -45,14 +45,23 @@ export default {
     joinRoom: async function (){
       this.$store.commit('setRoomId', this.roomCode);
       this.$store.commit('setUsername', this.name);
-      const roomRef = fb.firestore.collection('rooms').doc(`${this.roomCode}`);
+      const room = fb.db.ref('rooms/'+ this.roomCode);
+      room.once('value').then((snapshot) => {
+        const roomData = snapshot.val();
+        if(roomData == null){
+          console.log('room doesnt exist')
+        }else {
+          this.$router.push('Call');
+        }
+      })
+      /* const roomRef = fb.firestore.collection('rooms').doc(`${this.roomCode}`);
       const roomSnapshot = await roomRef.get();
       console.log('Got room:', roomSnapshot.exists);
       if (!roomSnapshot.exists) {
         console.log('room doesnt exist')
       } else {
         await this.$router.push('Call');
-      }
+      }*/
     },
   }
 }
