@@ -3,17 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start": "vue-cli-service serve",
+    "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "lint": "vue-cli-service lint",
+    "start": "node server.js"
   },
   "dependencies": {
     "buefy": "^0.8.16",
     "core-js": "^3.6.4",
+    "express": "^4.17.1",
     "firebase": "^7.14.2",
     "simple-peer": "^9.7.0",
     "vue": "^2.6.11",
-    "vue-router": "^3.1.6"
+    "vue-router": "^3.1.6",
+    "serve-static": "latest"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^4.3.0",
