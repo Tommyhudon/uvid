@@ -26,7 +26,6 @@ export default {
     }
   },
   created: async function() {
-    //await this.openUserMedia();
     if(this.host === true){
       await this.createRoom();
     }else {
@@ -34,6 +33,9 @@ export default {
     }
   },
   methods: {
+    createPeer: async function(initiator, stream){
+      return new SimplePeer({initiator: initiator, stream: stream, trickle: false})
+    },
     createRoom: async function (){
       //const roomRef = await fb.firestore.collection('rooms').doc();
       const roomCode = '4444';
@@ -47,45 +49,87 @@ export default {
       console.log('Join room: ', this.code);
       const roomRef = fb.db.ref('rooms/'+ this.code + '/Callers/');
 
-
       const localStream =  await navigator.mediaDevices.getUserMedia(
         {video: true, audio: true});
+
       //add video
-      const user = document.createElement('video');
-      const textUser = document.createElement('div');
-      textUser.className = "overlay-name";
-      textUser.innerText = this.name;
-      user.srcObject = localStream;
-      const room = document.getElementById('room');
-      room.appendChild(user);
-      room.appendChild(textUser)
-      user.play();
-      user.muted = true;
+      this.createVideo(localStream, true);
 
-      if(this.host === true){
 
+      console.log(this.host);
+      const peer = new SimplePeer({
+        initiator : this.host === false,
+        trickle: false,
+        stream: localStream
+      });
+
+      peer.on('error', err => {
+						  console.log('error', err)
+      });
+
+      //1(I) & 3(NI)
+      peer.on('signal', data => {
+						  console.log('SIGNAL', JSON.stringify(data));
+        const callerRef = roomRef.child(this.name);
+        const newSignal = callerRef.push();
+        newSignal.set({
+          data:JSON.stringify(data)
+        })
+      });
+
+      //Quelqu'un se connecte
+      roomRef.on('child_added', ({key: callerName}) => {
+        if(callerName !== this.name){
+          const callerRef = roomRef.child(callerName);
+          callerRef.on('child_added', (res) =>{
+            console.log('offer/answer', res.val().data);
+            peer.signal(JSON.parse(res.val().data))
+          })
+        }
+      });
+
+
+      peer.on('connect', () => {
+						  console.log('CONNECT');
+        peer.send(this.name)
+      });
+
+      peer.on('data', data => {
+						  console.log('data : '  + data)
+      });
+
+      peer.on('stream', stream => {
+        console.log('Got a stream', stream)
+        this.createVideo(stream)
+      })
+
+      //Register to the room
+
+      /*if(this.host === true){
         //Listen to connection
         roomRef.on('child_added', ({key: callerName}) => {
           const peer = new SimplePeer({stream: localStream});
           if(callerName !== this.name){
             console.log("new child", callerName);
 
+            //Listen caller signaling data
+            const callerRef = roomRef.child(callerName);
+            callerRef.on('child_added', (res) =>{
+              console.log('sending answer', res.val().data);
+              peer.signal(JSON.parse(res.val().data))
+            });
+
             const signalDataRef = fb.db.ref('/rooms/' + this.code + '/host/' + callerName);
             peer.on('signal', (signalData) => {
-              console.log('Nouveau joueur');
+              console.log('Receiving offer');
               const newSignalDataRef = signalDataRef.push();
               newSignalDataRef.set({
                 data: JSON.stringify(signalData)
               });
             });
 
-            //Listen caller signaling data
-            const callerRef = roomRef.child(callerName);
-            callerRef.on('child_added', (res) =>
-              peer.signal(JSON.parse(res.val().data)));
 
-
-            peer.on('stream', stream => {
+            /!*peer.on('stream', stream => {
               if(stream !== undefined){
                 console.log('streaming', stream)
                 const remoteStream = document.createElement('video');
@@ -97,16 +141,16 @@ export default {
                 room.appendChild(textUser)
                 remoteStream.play();
               }
-            })
+            })*!/
           }
         })
-      }else {
+      }*//*else {
         const nameRef = fb.db.ref('/rooms/' + this.code + '/Callers/' + this.name);
         console.log('mon nom', this.name);
         const peer = new SimplePeer({initiator: true, stream: localStream});
 
         peer.on('signal', (signalData) => {
-          console.log('joueur on');
+          console.log('Receiving answer');
           const newSignalDataRef = nameRef.push();
           newSignalDataRef.set({
             data: JSON.stringify(signalData)
@@ -116,52 +160,11 @@ export default {
         // Recieving signal
         const hostSignalRef = fb.db.ref('/rooms/'+this.code+'/host/'+this.name);
         hostSignalRef.on('child_added', (res) => {
-          console.log('player signal');
+          console.log('sending offer',(res.val().data));
           peer.signal(JSON.parse(res.val().data));
         });
 
-        peer.on('stream', stream => {
-          if(stream !== undefined){
-            console.log('streaming', stream);
-            const remoteStream = document.createElement('video');
-            const textUser = document.createElement('div');
-            textUser.innerText = this.name;
-            remoteStream.srcObject = localStream;
-            const room = document.getElementById('room');
-            room.appendChild(remoteStream);
-            room.appendChild(textUser);
-            remoteStream.play();
-          }
-        });
-        roomRef.on('child_added', ({key: callerName}) => {
-          if(callerName !== this.name){
-            console.log('new kid', callerName);
-            const peer = new SimplePeer({initiator: true, stream:localStream});
-
-            const callerRef = roomRef.child(callerName);
-            callerRef.on('child_added', (res) =>
-              peer.signal(JSON.parse(res.val().data)));
-
-
-            peer.on('stream', stream => {
-              if(stream !== undefined){
-                console.log('streaming', stream);
-                const remoteStream = document.createElement('video');
-                const textUser = document.createElement('div');
-                textUser.innerText = this.name;
-                remoteStream.srcObject = localStream;
-                const room = document.getElementById('room');
-                room.appendChild(remoteStream);
-                room.appendChild(textUser);
-                remoteStream.play();
-              }
-            });
-
-          }
-          console.log(callerName);
-        });
-
-        /*peer.on('stream', stream => {
+        /!*peer.on('stream', stream => {
           if(stream !== undefined){
             console.log('streaming', stream)
             const remoteStream = document.createElement('video');
@@ -173,8 +176,8 @@ export default {
             room.appendChild(textUser)
             remoteStream.play();
           }
-        });*/
-      }
+        });*!/
+      }*/
 
       //add video
       /*const user = document.createElement('video');
@@ -208,6 +211,20 @@ export default {
 
 
     },
+    createVideo: function(stream, currentUser){
+      const user = document.createElement('video');
+      const textUser = document.createElement('div');
+      textUser.className = "overlay-name";
+      textUser.innerText = this.name;
+      user.srcObject = stream;
+      const room = document.getElementById('room');
+      room.appendChild(user);
+      room.appendChild(textUser);
+      user.play();
+      if(currentUser === true){
+        user.muted = true;
+      }
+    }
   }
 }
 </script>
