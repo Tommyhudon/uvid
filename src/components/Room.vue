@@ -11,6 +11,20 @@ const fb = require('../firebaseConfig.js');
 
 export default {
   name: 'Room',
+  data: function() {
+    return{
+      initiator: true,
+      peerList: [],
+      nbConnected : 0,
+      caller: {
+        callerName: null,
+        stream: null,
+        peer: null,
+        offer: false,
+        answer: false
+      }
+    }
+  },
   computed: {
     code() {
       return this.$store.state.roomId
@@ -51,171 +65,153 @@ export default {
 
       const localStream =  await navigator.mediaDevices.getUserMedia(
         {video: true, audio: true});
+      this.caller.stream = localStream;
 
-      //add video
-      this.createVideo(localStream, true);
+      //add video main video
+      this.createVideo(localStream, true, this.name);
 
+      //First caller is never the initiator
+      if(this.host === true){
+        this.initiator = false;
+      }
 
-      console.log(this.host);
-      const peer = new SimplePeer({
-        initiator : this.host === false,
-        trickle: false,
-        stream: localStream
+      //count current participant
+      let nbOfParticipant;
+      const connectedLobby = fb.db.ref('/rooms/'+this.code+'/connected/');
+      await connectedLobby.once('value', function(snapshot) {
+        nbOfParticipant = snapshot.numChildren();
+        console.log('Number of already connected : ' +  snapshot.numChildren());
       });
 
-      peer.on('error', err => {
-						  console.log('error', err)
-      });
+      //Register as connected
+      const connected = fb.db.ref('/rooms/'+this.code+'/connected/'+this.name);
+      await connected.set({status:'connected'});
 
-      //1(I) & 3(NI)
-      peer.on('signal', data => {
-						  console.log('SIGNAL', JSON.stringify(data));
-        const callerRef = roomRef.child(this.name);
-        const newSignal = callerRef.push();
-        newSignal.set({
-          data:JSON.stringify(data)
-        })
-      });
+      //Momment crucial
+      connectedLobby.on("child_added", ({key: connectedName}) => {
+        if(connectedName !== this.name && this.initiator === true){
 
-      //Quelqu'un se connecte
-      roomRef.on('child_added', ({key: callerName}) => {
-        if(callerName !== this.name){
-          const callerRef = roomRef.child(callerName);
-          callerRef.on('child_added', (res) =>{
-            console.log('offer/answer', res.val().data);
-            peer.signal(JSON.parse(res.val().data))
-          })
+          const peer = new SimplePeer({
+            initiator : true,
+            stream: localStream,
+            trickle: false
+          });
+
+          let caller = {callerName: connectedName, peer: peer, offer: false, answer: false};
+          peer.on('error', err => {
+            console.log('error', err)
+          });
+
+          // 1 Initiator sends offer (1st step)
+          peer.on('signal', data => {
+            if(this.initiator === true){
+              //caller.offer = true;
+              console.log('Generating offer for : ' + caller.callerName, JSON.stringify(data));
+              const callerRef = roomRef.child(this.name);
+              const newSignal = callerRef.push();
+              newSignal.set({
+                data:JSON.stringify(data),
+                to: connectedName,
+                from: this.name
+              })
+            }
+          });
+
+          //Initiator receives answer step 5
+          const hostSignalRef = fb.db.ref('/rooms/'+this.code+'/host/'+this.name);
+          hostSignalRef.on('child_added', (res) => {
+            if(this.initiator === true && res.val().from === connectedName){
+              const validateAnswer = JSON.parse(res.val().data);
+              if(validateAnswer.type === 'answer'){
+                caller.answer = true;
+                console.log(res.val().to + ' Got answer from ' + res.val().from + res.val().data)
+              }
+              console.log(res.val().to + ' received something from ' + res.val().from);
+              peer.signal(JSON.parse(res.val().data));
+            }
+          });
+
+          /*peer.on('connect', () => {
+            if(this.initiator === true){
+              console.log('CONNECT');
+              peer.send(this.name);
+            }
+          });*/
+
+          /*peer.on('data', data => {
+            if(this.initiator === true){
+              console.log('data : '  + data);
+              this.caller.callerName = data;
+              this.initiator = false;
+            }
+          });*/
+
+          peer.on('stream', stream => {
+            if(this.initiator === true){
+              this.nbConnected++;
+              console.log('Initiator Got a stream for : ' + caller.callerName, stream);
+              this.createVideo(stream, false, caller.callerName);
+              this.peerList.push(caller);
+              if(nbOfParticipant === this.nbConnected){
+                this.initiator = false;
+              }
+              console.log('There is ' + this.nbConnected + ' other connected')
+            }
+          });
         }
       });
 
+      //We're in the call waiting for other (step 2)
+      roomRef.endAt().limitToLast(1).on('child_added', ({key: callerName}) => {
 
-      peer.on('connect', () => {
-						  console.log('CONNECT');
-        peer.send(this.name)
-      });
+        if(callerName !== this.name && this.initiator === false){
 
-      peer.on('data', data => {
-						  console.log('data : '  + data)
-      });
+          const peer = new SimplePeer({initiator: false, stream: localStream, trickle: false});
+          let caller = {callerName: callerName, peer: peer, offer: false, answer: false};
 
-      peer.on('stream', stream => {
-        console.log('Got a stream', stream)
-        this.createVideo(stream)
-      })
-
-      //Register to the room
-
-      /*if(this.host === true){
-        //Listen to connection
-        roomRef.on('child_added', ({key: callerName}) => {
-          const peer = new SimplePeer({stream: localStream});
-          if(callerName !== this.name){
-            console.log("new child", callerName);
-
-            //Listen caller signaling data
-            const callerRef = roomRef.child(callerName);
-            callerRef.on('child_added', (res) =>{
-              console.log('sending answer', res.val().data);
-              peer.signal(JSON.parse(res.val().data))
-            });
-
-            const signalDataRef = fb.db.ref('/rooms/' + this.code + '/host/' + callerName);
-            peer.on('signal', (signalData) => {
-              console.log('Receiving offer');
-              const newSignalDataRef = signalDataRef.push();
-              newSignalDataRef.set({
-                data: JSON.stringify(signalData)
-              });
-            });
-
-
-            /!*peer.on('stream', stream => {
-              if(stream !== undefined){
-                console.log('streaming', stream)
-                const remoteStream = document.createElement('video');
-                const textUser = document.createElement('div');
-                textUser.innerText = callerName;
-                remoteStream.srcObject = localStream;
-                const room = document.getElementById('room');
-                room.appendChild(remoteStream);
-                room.appendChild(textUser)
-                remoteStream.play();
-              }
-            })*!/
-          }
-        })
-      }*//*else {
-        const nameRef = fb.db.ref('/rooms/' + this.code + '/Callers/' + this.name);
-        console.log('mon nom', this.name);
-        const peer = new SimplePeer({initiator: true, stream: localStream});
-
-        peer.on('signal', (signalData) => {
-          console.log('Receiving answer');
-          const newSignalDataRef = nameRef.push();
-          newSignalDataRef.set({
-            data: JSON.stringify(signalData)
+          //step 4
+          peer.on('signal', data => {
+            console.log(this.name + ' Generating answer for ' + callerName, JSON.stringify(data));
+            const signalDataRef = fb.db.ref('/rooms/'+this.code+'/host/'+callerName);
+            const newSignalDataRef = signalDataRef.push();
+            newSignalDataRef.set({
+              data: JSON.stringify((data)),
+              to: callerName,
+              from: this.name
+            })
           });
-        });
 
-        // Recieving signal
-        const hostSignalRef = fb.db.ref('/rooms/'+this.code+'/host/'+this.name);
-        hostSignalRef.on('child_added', (res) => {
-          console.log('sending offer',(res.val().data));
-          peer.signal(JSON.parse(res.val().data));
-        });
+          //step 3
+          const callerRef = roomRef.child(callerName);
+          callerRef.on('child_added', (res) =>{
+            if(res.val().to === this.name){
+              console.log(res.val().to + ' received something from ', res.val().from);
+              peer.signal(JSON.parse(res.val().data))
+            }
+          });
 
-        /!*peer.on('stream', stream => {
-          if(stream !== undefined){
-            console.log('streaming', stream)
-            const remoteStream = document.createElement('video');
-            const textUser = document.createElement('div');
-            textUser.innerText = this.name;
-            remoteStream.srcObject = localStream;
-            const room = document.getElementById('room');
-            room.appendChild(remoteStream);
-            room.appendChild(textUser)
-            remoteStream.play();
-          }
-        });*!/
-      }*/
+          /*peer.on('connect', () => {
+            console.log('CONNECT');
+            peer.send(this.name);
+          });*/
 
-      //add video
-      /*const user = document.createElement('video');
-      const textUser = document.createElement('div');
-      textUser.className = "overlay-name";
-      textUser.innerText = this.name;
+          /*peer.on('data', data => {
+            console.log('data : '  + data)
+          });*/
 
-      user.srcObject = localStream;
-      const room = document.getElementById('room');
-      room.appendChild(user);
-      room.appendChild(textUser)
-      user.play();
-      user.muted = true;*/
-
-      //Caller writes his name and notify everyone he's here
-      /*localPeer.on('signal', signalData => {
-        console.log('LocalPeer signal', signalData);
-        const callerRef = roomRef.child(this.name);
-        const newSignalDataRef = callerRef.push();
-        newSignalDataRef.set({
-          data:JSON.stringify(signalData)
-        })
-      });*/
-
-      /*const myOffers = fb.db.ref('rooms/'+ this.code + '/Callers/' + this.name + '/offers/');
-      myOffers.on('child_added', (res) => {
-        console.log('people love me');
-        const peer = new SimplePeer({trickle : false});
-        peer.signal(JSON.parse(res.val().data))
-      });*/
-
-
+          peer.on('stream', stream => {
+            console.log('Got a stream from : ' + callerName, stream);
+            this.createVideo(stream, false, callerName);
+            this.peerList.push(caller)
+          })
+        }
+      });
     },
-    createVideo: function(stream, currentUser){
+    createVideo: function(stream, currentUser, callerName){
       const user = document.createElement('video');
       const textUser = document.createElement('div');
       textUser.className = "overlay-name";
-      textUser.innerText = this.name;
+      textUser.innerText = callerName;
       user.srcObject = stream;
       const room = document.getElementById('room');
       room.appendChild(user);
@@ -224,7 +220,7 @@ export default {
       if(currentUser === true){
         user.muted = true;
       }
-    }
+    },
   }
 }
 </script>
