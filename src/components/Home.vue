@@ -38,18 +38,29 @@ export default {
   },
   methods: {
     createRoom: async function (){
+      if(this.name === ''){
+        this.$buefy.dialog.alert('Name must be filled out');
+        return false;
+      }
       this.$store.commit('setHost');
       this.$store.commit('setUsername', this.name);
       await this.$router.push('Call');
     },
     joinRoom: async function (){
+
+      if(this.name === '' || this.roomCode === ''){
+        this.$buefy.dialog.alert('Name and Code must be filled out');
+        return false;
+      }
+
       this.$store.commit('setRoomId', this.roomCode);
       this.$store.commit('setUsername', this.name);
       const room = fb.db.ref('rooms/'+ this.roomCode);
+
       room.once('value').then((snapshot) => {
         const roomData = snapshot.val();
         if(roomData == null){
-          console.log('room doesnt exist')
+          this.$buefy.dialog.alert('Room does not exist')
         }else {
           this.$router.push('Call');
         }

@@ -40,7 +40,7 @@ export default {
   },
   methods: {
     createRoom: async function (){
-      const roomCode = '4444';
+      const roomCode = this.generateCode();
       this.$store.commit('setRoomId', roomCode);
       const room = fb.db.ref('rooms/' + roomCode);
       await room.set({time: firebase.database.ServerValue.TIMESTAMP});
@@ -69,6 +69,9 @@ export default {
         nbOfParticipant = snapshot.numChildren();
         console.log('Number of already connected : ' +  snapshot.numChildren());
       });
+
+      const connectedName = nbOfParticipant + '-' + this.name;
+      this.$store.commit('setUsername', connectedName);
 
       //Register as connected
       const connected = fb.db.ref('/rooms/'+this.code+'/connected/'+this.name);
@@ -153,7 +156,8 @@ export default {
         }
       });
     },
-    createVideo: function(stream, currentUser, callerName){
+    createVideo: function(stream, currentUser, callerName) {
+      callerName = callerName.split("-").pop();
       const user = document.createElement('video');
       const textUser = document.createElement('div');
       textUser.className = "overlay-name";
@@ -167,6 +171,15 @@ export default {
         user.muted = true;
       }
     },
+    generateCode: function() {
+      const roomCodeOptions = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      let code = '';
+      for(let i=0; i<4; i++){
+        const ndx = Math.floor(Math.random() * roomCodeOptions.length);
+        code += roomCodeOptions[ndx];
+      }
+      return code;
+    }
   }
 }
 </script>
