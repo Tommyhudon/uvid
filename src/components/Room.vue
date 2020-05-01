@@ -4,7 +4,6 @@
   </div>
 </template>
 <script>
-import router from '../router'
 import SimplePeer from 'simple-peer';
 import * as firebase from "firebase";
 const fb = require('../firebaseConfig.js');
@@ -16,13 +15,6 @@ export default {
       initiator: true,
       peerList: [],
       nbConnected : 0,
-      caller: {
-        callerName: null,
-        stream: null,
-        peer: null,
-        offer: false,
-        answer: false
-      }
     }
   },
   computed: {
@@ -47,11 +39,7 @@ export default {
     }
   },
   methods: {
-    createPeer: async function(initiator, stream){
-      return new SimplePeer({initiator: initiator, stream: stream, trickle: false})
-    },
     createRoom: async function (){
-      //const roomRef = await fb.firestore.collection('rooms').doc();
       const roomCode = '4444';
       this.$store.commit('setRoomId', roomCode);
       const room = fb.db.ref('rooms/' + roomCode);
@@ -65,9 +53,8 @@ export default {
 
       const localStream =  await navigator.mediaDevices.getUserMedia(
         {video: true, audio: true});
-      this.caller.stream = localStream;
 
-      //add video main video
+      //add main video
       this.createVideo(localStream, true, this.name);
 
       //First caller is never the initiator
@@ -91,22 +78,12 @@ export default {
       connectedLobby.on("child_added", ({key: connectedName}) => {
         if(connectedName !== this.name && this.initiator === true){
 
-          const peer = new SimplePeer({
-            initiator : true,
-            stream: localStream,
-            trickle: false
-          });
-
-          let caller = {callerName: connectedName, peer: peer, offer: false, answer: false};
-          peer.on('error', err => {
-            console.log('error', err)
-          });
+          const peer = new SimplePeer({initiator : true, stream: localStream});
 
           // 1 Initiator sends offer (1st step)
           peer.on('signal', data => {
             if(this.initiator === true){
-              //caller.offer = true;
-              console.log('Generating offer for : ' + caller.callerName, JSON.stringify(data));
+              console.log('Generating offer for : ' + connectedName, JSON.stringify(data));
               const callerRef = roomRef.child(this.name);
               const newSignal = callerRef.push();
               newSignal.set({
@@ -118,40 +95,20 @@ export default {
           });
 
           //Initiator receives answer step 5
-          const hostSignalRef = fb.db.ref('/rooms/'+this.code+'/host/'+this.name);
+          const hostSignalRef = fb.db.ref('/rooms/'+this.code+'/answers/'+this.name);
           hostSignalRef.on('child_added', (res) => {
             if(this.initiator === true && res.val().from === connectedName){
-              const validateAnswer = JSON.parse(res.val().data);
-              if(validateAnswer.type === 'answer'){
-                caller.answer = true;
-                console.log(res.val().to + ' Got answer from ' + res.val().from + res.val().data)
-              }
               console.log(res.val().to + ' received something from ' + res.val().from);
               peer.signal(JSON.parse(res.val().data));
             }
           });
 
-          /*peer.on('connect', () => {
-            if(this.initiator === true){
-              console.log('CONNECT');
-              peer.send(this.name);
-            }
-          });*/
-
-          /*peer.on('data', data => {
-            if(this.initiator === true){
-              console.log('data : '  + data);
-              this.caller.callerName = data;
-              this.initiator = false;
-            }
-          });*/
-
           peer.on('stream', stream => {
             if(this.initiator === true){
               this.nbConnected++;
-              console.log('Initiator Got a stream for : ' + caller.callerName, stream);
-              this.createVideo(stream, false, caller.callerName);
-              this.peerList.push(caller);
+              console.log('Initiator Got a stream for : ' + connectedName, stream);
+              this.createVideo(stream, false, connectedName);
+              this.peerList.push(peer);
               if(nbOfParticipant === this.nbConnected){
                 this.initiator = false;
               }
@@ -163,16 +120,14 @@ export default {
 
       //We're in the call waiting for other (step 2)
       roomRef.endAt().limitToLast(1).on('child_added', ({key: callerName}) => {
-
         if(callerName !== this.name && this.initiator === false){
 
-          const peer = new SimplePeer({initiator: false, stream: localStream, trickle: false});
-          let caller = {callerName: callerName, peer: peer, offer: false, answer: false};
+          const peer = new SimplePeer({initiator: false, stream: localStream});
 
           //step 4
           peer.on('signal', data => {
             console.log(this.name + ' Generating answer for ' + callerName, JSON.stringify(data));
-            const signalDataRef = fb.db.ref('/rooms/'+this.code+'/host/'+callerName);
+            const signalDataRef = fb.db.ref('/rooms/'+this.code+'/answers/'+callerName);
             const newSignalDataRef = signalDataRef.push();
             newSignalDataRef.set({
               data: JSON.stringify((data)),
@@ -190,19 +145,10 @@ export default {
             }
           });
 
-          /*peer.on('connect', () => {
-            console.log('CONNECT');
-            peer.send(this.name);
-          });*/
-
-          /*peer.on('data', data => {
-            console.log('data : '  + data)
-          });*/
-
           peer.on('stream', stream => {
             console.log('Got a stream from : ' + callerName, stream);
             this.createVideo(stream, false, callerName);
-            this.peerList.push(caller)
+            this.peerList.push(peer)
           })
         }
       });
