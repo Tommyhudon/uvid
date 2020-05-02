@@ -1,5 +1,15 @@
 # uvid
 
+### Link to the app
+
+https://secret-refuge-14421.herokuapp.com/
+
+### Choices of technologies
+* **Frontend frameworks**: [Vuex](https://vuex.vuejs.org/)
+* **Backend frameworks**: [Express](https://expressjs.com/). This is only for the heroku deployment.
+* **Backend language**: [Javascript] with [NodeJs]
+* **Database**: [Firebase Real-time Datbase](https://firebase.google.com/docs/database).
+
 ## Project setup
 ```
 npm install
