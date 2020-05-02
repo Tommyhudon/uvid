@@ -9,6 +9,7 @@ https://secret-refuge-14421.herokuapp.com/
 * **Backend frameworks**: [Express](https://expressjs.com/). This is only for the heroku deployment.
 * **Backend language**: [Javascript] with [NodeJs]
 * **Database**: [Firebase Real-time Datbase](https://firebase.google.com/docs/database).
+* **Other technologies**: [simple-peer](https://github.com/feross/simple-peer). An npm package for WebRTC video, voice, and data channels.
 
 ## Project setup
 ```
