@@ -1,9 +1,9 @@
 <template>
   <div id="home">
     <h1>Welcome to Uvid</h1>
-    <h3>Please enter your name before joining</h3>
-					<b-button rounded size="is-medium" type="is-success" @click="createRoomModal = true">Create</b-button>
-				<b-button rounded size="is-medium" type="is-success" @click="joinRoomModal = true">Join</b-button>
+
+					<b-button rounded size="is-medium" type="is-success" @click="createRoomModal = true">Create Room</b-button>
+				<b-button rounded size="is-medium" type="is-success" @click="joinRoomModal = true">Join Room</b-button>
 
 
 			<b-modal :active.sync="createRoomModal" has-modal-card>
@@ -25,7 +25,7 @@
 
 <script>
 const fb = require('../firebaseConfig.js');
-import * as firebase from 'firebase';
+
 export default {
   name: 'Home',
   data : function() {
@@ -78,5 +78,15 @@ export default {
   align-items: center;
   background-color: #110022;
   min-height: 100vh;
+
+	h1{
+		font-size: 2.5rem;
+		font-weight: 700;
+		font-family: Ringside Regular A,Ringside Regular B,Rubik,Lato,Lucida Grande,Lucida Sans Unicode,Tahoma,Sans-Serif;
+	}
+
+	button{
+		margin: 10px;
+	}
 }
 </style>

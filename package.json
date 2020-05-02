@@ -13,10 +13,11 @@
     "core-js": "^3.6.4",
     "express": "^4.17.1",
     "firebase": "^7.14.2",
+    "jquery-ui": "^1.12.1",
+    "serve-static": "latest",
     "simple-peer": "^9.7.0",
     "vue": "^2.6.11",
-    "vue-router": "^3.1.6",
-    "serve-static": "latest"
+    "vue-router": "^3.1.6"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^4.3.0",
